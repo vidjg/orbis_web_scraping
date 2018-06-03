@@ -51,7 +51,7 @@ while 1:
     if if_ready == 'Y':
         break
 
-start_page = 14541
+start_page = 15281
 
 # Starting from the 1st Page
 #page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
@@ -95,6 +95,7 @@ strainer_a = SoupStrainer('a', {'data-action': "reporttransfer"})
 strainer_td = SoupStrainer('td', {'class': 'scroll-data'})
 strainer_input = SoupStrainer('input', {'title': 'Number of page'})
 
+stuck_times = 0
 stuck = 0
 teleport = 0
 innerHTML = []
@@ -109,52 +110,85 @@ while page_num <= total_pages:
             innerHTML.append(current)
             print("Page {0} retrieved!".format(page_num))
             stuck = 0
-            teleport = 0
+            stuck_times = 0
             if len(innerHTML) + pages - per_round == total_pages or len(innerHTML) == per_round:
                 break
-            elif pages_each_time == 1 or page_num % pages_each_time == 1:
+            elif page_num % pages_each_time == 1 and teleport == 0:
                 next_button = browser.find_element_by_xpath("//img[@data-action='next']")
-                try:
-                    for m in range(min(pages_each_time, per_round - page_num % per_round + 1)):
-                        next_button.click()
-                    pages_each_time = each_time
-                except:
-                    continue
+                num_to_roll = per_round - page_num % per_round + 1
+                rolled = 0
+                while 1:
+                    try:
+                        for m in range(rolled, num_to_roll):
+                            next_button.click()
+                        print('Rolling!')
+                        break
+                    except:
+                        rolled = m
+                        next_button = browser.find_element_by_xpath("//img[@data-action='next']")
+                        continue
+            elif teleport == 1:
+                next_button = browser.find_element_by_xpath("//img[@data-action='next']")
+                num_to_roll = per_round - page_num % per_round + 1
+                rolled = 0
+                while 1:
+                    try:
+                        for m in range(rolled, num_to_roll):
+                            next_button.click()
+                        print('Too fast recovered!')
+                        break
+                    except:
+                        rolled = m
+                        next_button = browser.find_element_by_xpath("//img[@data-action='next']")
+                        continue
+                teleport = 0
             
         elif page_num - pages + per_round - 1 > len(innerHTML):
             try:
                 if teleport == 0:
-                    print('Too fast. Teleport to Page {0}'.format(len(innerHTML) + pages - per_round + 1))
                     page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
                     page_input.clear()
                     page_to_go = len(innerHTML) + pages - per_round + 1
                     page_input.send_keys(str(page_to_go))
                     page_input.send_keys(Keys.RETURN)
-                    next_button = browser.find_element_by_xpath("//img[@data-action='next']")
-                    try:
-                        for m in range(min(pages_each_time, per_round - page_num % per_round + 1)):
-                            next_button.click()
-                        pages_each_time = each_time
-                    except:
-                        continue
+                    print('Too fast. Teleport to Page {0}'.format(len(innerHTML) + pages - per_round + 1))
                     stuck = 0
+                    stuck_times = 0
                     teleport = 1
             except:
                 continue
         else:
             stuck += 1
-            if stuck >= 50:
-                print('stuck!')
-                pages_each_time = pages - page_num + 1
+            if stuck >= 50 and stuck_times <= 3:
                 stuck = 0
+                stuck_times += 1
                 next_button = browser.find_element_by_xpath("//img[@data-action='next']")
+                num_to_roll = per_round - page_num % per_round + 1
+                rolled = 0
+                while 1:
+                    try:
+                        for m in range(rolled, num_to_roll):
+                            next_button.click()
+                        print('Recovered from stuck!')
+                        break
+                    except:
+                        rolled = m
+                        next_button = browser.find_element_by_xpath("//img[@data-action='next']")
+                        continue
+            elif stuck >= 50 and stuck_times == 4:
                 try:
-                    for m in range(min(pages_each_time, per_round - page_num % per_round + 1)):
-                        next_button.click()
-                    pages_each_time = each_time
+                    stuck = 0
+                    stuck_times += 1
+                    page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
+                    page_input.clear()
+                    page_to_go = len(innerHTML) + pages - per_round + 1
+                    page_input.send_keys(str(page_to_go))
+                    page_input.send_keys(Keys.RETURN)  
+                    print('Too slow. Teleport to Page {0}'.format(len(innerHTML) + pages - per_round + 1))
+                    teleport = 1
                 except:
                     continue
-    
+                
     if page_num > pages + 1:
         page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
         page_input.clear()
