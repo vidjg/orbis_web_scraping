@@ -51,7 +51,7 @@ while 1:
     if if_ready == 'Y':
         break
 
-start_page = 15281
+start_page = 18841
 
 # Starting from the 1st Page
 #page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
@@ -101,6 +101,7 @@ teleport = 0
 innerHTML = []
 while page_num <= total_pages:
     teleport = 0
+    stuck_times = 0
     while 1:
         current = browser.execute_script("return document.body.innerHTML")
         
@@ -110,7 +111,6 @@ while page_num <= total_pages:
             innerHTML.append(current)
             print("Page {0} retrieved!".format(page_num))
             stuck = 0
-            stuck_times = 0
             if len(innerHTML) + pages - per_round == total_pages or len(innerHTML) == per_round:
                 break
             elif page_num % pages_each_time == 1 and teleport == 0:
@@ -153,13 +153,12 @@ while page_num <= total_pages:
                     page_input.send_keys(Keys.RETURN)
                     print('Too fast. Teleport to Page {0}'.format(len(innerHTML) + pages - per_round + 1))
                     stuck = 0
-                    stuck_times = 0
                     teleport = 1
             except:
                 continue
         else:
             stuck += 1
-            if stuck >= 50 and stuck_times <= 3:
+            if stuck >= 50 and stuck_times < 1:
                 stuck = 0
                 stuck_times += 1
                 next_button = browser.find_element_by_xpath("//img[@data-action='next']")
@@ -175,7 +174,7 @@ while page_num <= total_pages:
                         rolled = m
                         next_button = browser.find_element_by_xpath("//img[@data-action='next']")
                         continue
-            elif stuck >= 50 and stuck_times == 4:
+            elif stuck >= 50 and stuck_times == 1:
                 try:
                     stuck = 0
                     stuck_times += 1
