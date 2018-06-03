@@ -9,9 +9,9 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup as soup
 from bs4 import SoupStrainer
+from lxml import html
 import time
 import pandas as pd
-import smtplib
 
 login_url = "https://orbis4.bvdinfo.com/"
 form_data = {"user": "WBG_IFC", "pw": "Global Markets"}
@@ -51,10 +51,11 @@ while 1:
     if if_ready == 'Y':
         break
 
-start_page = 1
+start_page = 14541
 
 # Starting from the 1st Page
-page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
+#page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
+page_input = browser.find_elements_by_css_selector("ul.navigation > li > input")[0]
 page_input.clear()
 page_input.send_keys(str(start_page))
 page_input.send_keys(Keys.RETURN)
@@ -78,14 +79,13 @@ for x in column_names:
     company_data[x] = []
 
 page_num = int(page_soup.find('input', {'title': 'Number of page'})['value'])
-page_done = page_num
 
 per_page = 100
 total_companies = int(page_soup.find('td',{'class':'grand-total'}).text.replace(',',''))
 grand_total_pages =  total_companies // per_page + 1 # Number of pages of data to retrieve
 total_pages = grand_total_pages
 per_round = 20
-pages = (page_num // per_round + 1) * (per_round)
+pages = (start_page // per_round + 1) * (per_round)
 each_time = 20
 pages_each_time = each_time
 
@@ -102,18 +102,20 @@ while page_num <= total_pages:
     teleport = 0
     while 1:
         current = browser.execute_script("return document.body.innerHTML")
+        
         soup_input = soup(current, "lxml", parse_only=strainer_input)
         page_num = int(soup_input.input['value'])
         if page_num - pages + per_round - 1 == len(innerHTML):
             innerHTML.append(current)
             print("Page {0} retrieved!".format(page_num))
             stuck = 0
+            teleport = 0
             if len(innerHTML) + pages - per_round == total_pages or len(innerHTML) == per_round:
                 break
             elif pages_each_time == 1 or page_num % pages_each_time == 1:
                 next_button = browser.find_element_by_xpath("//img[@data-action='next']")
                 try:
-                    for m in range(min(pages_each_time, pages - page_num + 1)):
+                    for m in range(min(pages_each_time, per_round - page_num % per_round + 1)):
                         next_button.click()
                     pages_each_time = each_time
                 except:
@@ -128,9 +130,15 @@ while page_num <= total_pages:
                     page_to_go = len(innerHTML) + pages - per_round + 1
                     page_input.send_keys(str(page_to_go))
                     page_input.send_keys(Keys.RETURN)
-                    if page_to_go % pages_each_time != 1:
-                        pages_each_time = 1
+                    next_button = browser.find_element_by_xpath("//img[@data-action='next']")
+                    try:
+                        for m in range(min(pages_each_time, per_round - page_num % per_round + 1)):
+                            next_button.click()
+                        pages_each_time = each_time
+                    except:
+                        continue
                     stuck = 0
+                    teleport = 1
             except:
                 continue
         else:
@@ -141,7 +149,7 @@ while page_num <= total_pages:
                 stuck = 0
                 next_button = browser.find_element_by_xpath("//img[@data-action='next']")
                 try:
-                    for m in range(min(pages_each_time, pages - page_num + 1)):
+                    for m in range(min(pages_each_time, per_round - page_num % per_round + 1)):
                         next_button.click()
                     pages_each_time = each_time
                 except:
@@ -194,32 +202,3 @@ while page_num <= total_pages:
     pages += per_round
     
 print('Successfully output to csv file!')
-
-user = 'sufe.martin.qian@gmail.com'
-pwd = 'DWL,iloveyou'
-recipient = 'shuai.qian@outlook.com'
-subject = 'Web Scraping Finished!'
-body = 'Successfully scraped all the data! Total number of page is {0}.'.format(grand_total_pages)
-
-def send_email(user, pwd, recipient, subject, body):
-
-    FROM = user
-    TO = recipient if isinstance(recipient, list) else [recipient]
-    SUBJECT = subject
-    TEXT = body
-
-    # Prepare actual message
-    message = """From: %s\nTo: %s\nSubject: %s\n\n%s
-    """ % (FROM, ", ".join(TO), SUBJECT, TEXT)
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.ehlo()
-        server.starttls()
-        server.login(user, pwd)
-        server.sendmail(FROM, TO, message)
-        server.close()
-        print('successfully sent the mail')
-    except:
-        print("failed to send mail")
-        
-send_email(user, pwd, recipient, subject, body)
