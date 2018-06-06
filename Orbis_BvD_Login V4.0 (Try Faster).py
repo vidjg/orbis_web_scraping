@@ -51,7 +51,7 @@ while 1:
     if if_ready == 'Y':
         break
 
-start_page = 18841
+start_page = 20001
 
 # Starting from the 1st Page
 #page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
