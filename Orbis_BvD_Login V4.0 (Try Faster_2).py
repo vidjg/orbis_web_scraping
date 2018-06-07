@@ -26,32 +26,46 @@ password.send_keys(form_data["pw"])
 login_button = browser.find_element_by_class_name("ok")
 login_button.click()
 
-try:
-    search_button = browser.find_element_by_xpath("//a[@data-paramid='AllCompanies']")
-    search_button.click()
-except:
-    restart_button = browser.find_element_by_xpath("//input[@class='button ok']")
-    restart_button.click()
-    search_button = browser.find_element_by_xpath("//a[@data-paramid='AllCompanies']")
-    search_button.click()
+def login_orbis(browser,year):
 
-# Ask if filters are all set
-while 1:
-    if_ready = input('Are filters all set? (Y/n)\n')
-    if if_ready == 'Y':
-        break
+    try:
+        search_button = browser.find_element_by_xpath("//a[@data-paramid='AllCompanies']")
+        search_button.click()
+    except:
+        restart_button = browser.find_element_by_xpath("//input[@class='button ok']")
+        restart_button.click()
+        search_button = browser.find_element_by_xpath("//a[@data-paramid='AllCompanies']")
+        search_button.click()
 
-indicator_url = "https://orbis4.bvdinfo.com/version-2018523/orbis/1/Companies/ListEdition"
-browser.get(indicator_url)
+    load_button = browser.find_element_by_css_selector('#search-toolbar > div > div.menu-container > ul > li[data-vs-value=load-search-section]')
+    load_button.click()
+    time.sleep(5)
+    while 1:
+        try:
+            search_input = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.toolbar-tabs-zone-header > div.criterion-search > input.toolbar-find-criterion')
+            search_input.send_keys(str(year))
+            time.sleep(0.5)
+            search_set = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.user-data-item-folder.searches > div:nth-child(7) > div > div.no-scroll-bar > ul.user-data-item-folder.search-result > li > a > span.name.clickable')
+            search_set.click()
+            ok_button = browser.find_element_by_css_selector('body > div.viewport.main > div.popup.new-search > form > p > a.button.submit.ok')
+            ok_button.click()
+            break
+        except:
+            continue
+        
 
-# Ask if indicators (columns) are all set
-while 1:
-    if_ready = input(
-        "Are indicators (columns) all set and ready to retrieve data? (Y/n)\n(Make sure you've clicked 'Apply' and no repetitive indicator exists)\n")
-    if if_ready == 'Y':
-        break
+    data_url = "https://orbis4.bvdinfo.com/version-201866/orbis/1/Companies/List"
+    browser.get(data_url)
+    select_view = browser.find_element_by_css_selector('div.menuViewContainer > div.menuView > ul > li > a')
+    select_view.click()
+    view_year = browser.find_element_by_css_selector('span.name.clickable[title="All Columns {0}"]'.format(year))
+    view_year.click()
 
+
+# Settings for scraping #############################
+login_orbis(browser,2015)
 start_page = 20481
+#####################################################
 
 # Starting from the 1st Page
 #page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
