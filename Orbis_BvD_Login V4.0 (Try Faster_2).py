@@ -51,7 +51,7 @@ while 1:
     if if_ready == 'Y':
         break
 
-start_page = 15721
+start_page = 20481
 
 # Starting from the 1st Page
 #page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
@@ -158,6 +158,7 @@ while page_num <= total_pages:
         elif page_num - pages + per_round - 1 > len(innerHTML):
             try:
                 if teleport == 0:
+                    browser.refresh()
                     page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
                     page_input.clear()
                     page_to_go = len(innerHTML) + pages - per_round + 1
@@ -188,17 +189,18 @@ while page_num <= total_pages:
                         continue
             elif stuck >= 50 and stuck_times == 1:
                 try:
-                    stuck = 0
                     stuck_times += 1
+                    browser.refresh()
                     page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
                     page_input.clear()
                     page_to_go = len(innerHTML) + pages - per_round + 1
                     page_input.send_keys(str(page_to_go))
-                    page_input.send_keys(Keys.RETURN)  
+                    page_input.send_keys(Keys.RETURN)
                     print('Too slow. Teleport to Page {0}'.format(len(innerHTML) + pages - per_round + 1))
+                    stuck = 0
+                    teleport = 1
                 except:
                     continue
-                
 
     # Parsing HTML
     if pages == per_round:
