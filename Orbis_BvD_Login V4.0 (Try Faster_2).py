@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu May 24 13:34:26 2018
-
 @author: Shuai
 """
 
@@ -39,33 +38,36 @@ def login_orbis(browser,year):
 
     load_button = browser.find_element_by_css_selector('#search-toolbar > div > div.menu-container > ul > li[data-vs-value=load-search-section]')
     load_button.click()
-    time.sleep(5)
-    while 1:
-        try:
-            search_input = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.toolbar-tabs-zone-header > div.criterion-search > input.toolbar-find-criterion')
-            search_input.send_keys(str(year))
-            time.sleep(0.5)
-            search_set = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.user-data-item-folder.searches > div:nth-child(7) > div > div.no-scroll-bar > ul.user-data-item-folder.search-result > li > a > span.name.clickable')
-            search_set.click()
-            ok_button = browser.find_element_by_css_selector('body > div.viewport.main > div.popup.new-search > form > p > a.button.submit.ok')
-            ok_button.click()
-            break
-        except:
-            continue
+    time.sleep(3)
+    search_input = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.toolbar-tabs-zone-header > div.criterion-search > input.toolbar-find-criterion')
+    search_input.send_keys(str(year))
+    time.sleep(1)
+    search_set = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.user-data-item-folder.searches > div:nth-child(7) > div > div.no-scroll-bar > ul.user-data-item-folder.search-result > li > a > span.name.clickable')
+    search_set.click()
+    time.sleep(1)
+    ok_button = browser.find_element_by_css_selector('a.button.submit.ok')
+    ok_button.click()
         
-
     data_url = "https://orbis4.bvdinfo.com/version-201866/orbis/1/Companies/List"
     browser.get(data_url)
     select_view = browser.find_element_by_css_selector('div.menuViewContainer > div.menuView > ul > li > a')
-    select_view.click()
-    view_year = browser.find_element_by_css_selector('span.name.clickable[title="All Columns {0}"]'.format(year))
-    view_year.click()
-
-
+    select_view.click()  
+    while 1:
+        try:
+            view_year = browser.find_element_by_css_selector('span.name.clickable[title="All Columns {0}"]'.format(year))
+            view_year.click()
+            break
+        except:
+            continue
+    
 # Settings for scraping #############################
 login_orbis(browser,2015)
-start_page = 20481
+start_page = 20761
 #####################################################
+
+if_start = input('Start scraping data? (Y/n)\n')
+if if_start != 'Y':
+    exit
 
 # Starting from the 1st Page
 #page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
