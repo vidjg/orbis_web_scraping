@@ -51,7 +51,7 @@ while 1:
     if if_ready == 'Y':
         break
 
-start_page = 6081
+start_page = 15721
 
 # Starting from the 1st Page
 #page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
@@ -75,6 +75,7 @@ for x in label_info:
 column_names = ['company_name'] + column_names
 column_num = len(column_names)
 company_data = pd.DataFrame()
+company_names = []
 for x in column_names:
     company_data[x] = []
 
@@ -102,15 +103,26 @@ innerHTML = []
 while page_num <= total_pages:
     teleport = 0
     stuck_times = 0
+    
     while 1:
         current = browser.execute_script("return document.body.innerHTML")
-        
         soup_input = soup(current, "lxml", parse_only=strainer_input)
         page_num = int(soup_input.input['value'])
         if page_num - pages + per_round - 1 == len(innerHTML):
             innerHTML.append(current)
             print("Page {0} retrieved!".format(page_num))
             stuck = 0
+            page_soup = soup(innerHTML[-1],"lxml")         
+            try:
+                company_names += [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})][:100]
+            except:
+                company_names = [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})][:100]
+            data_points = page_soup.find('td', {'class': 'scroll-data'}).find_all('tr')
+            company_data = company_data.drop("company_name",axis=1)
+            for i in range(0, per_page):
+                company_data.loc[i + len(innerHTML) * per_page] = [x.text for x in data_points[i].find_all('td')]
+            company_data.insert(0,"company_name",company_names)
+            print("Page {0} finished!".format(page_num))
             if len(innerHTML) + pages - per_round == total_pages or len(innerHTML) == per_round:
                 break
             elif page_num % pages_each_time == 1 and teleport == 0:
@@ -187,48 +199,17 @@ while page_num <= total_pages:
                 except:
                     continue
                 
-    if page_num > pages + 1:
-        page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
-        page_input.clear()
-        page_input.send_keys(str(page_num + 1))
-        page_input.send_keys(Keys.RETURN)
 
     # Parsing HTML
-    for page_done in range(per_round):
-        page_soup = soup(innerHTML[page_done],"lxml")
-        company_names = [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})]
-# =============================================================================
-#         soup_a = soup(innerHTML[page_done], "lxml", parse_only=strainer_a)
-#         company_names = [x.text for x in soup_a.find_all()]
-#         soup_td = soup(innerHTML[page_done], "lxml", parse_only=strainer_td)
-#         data_points = soup_td.find_all('tr')        
-# =============================================================================
-#        tds = soup_td.td.find_all('td')
-        data_points = page_soup.find('td', {'class': 'scroll-data'}).find_all('tr')
-        for i in range(0, per_page):
-            company_data.loc[i + (page_done) * per_page] = (
-                        [company_names[i]] + [x.text for x in data_points[i].find_all('td')])
-# =============================================================================
-#             company_data.loc[i + (page_done) * per_page] = (
-#                         [company_names[i]] + [x.text for x in tds[(column_num-1)*i:(i+1)*(column_num-1)]])
-# =============================================================================
-
-            if page_done + 1 + pages - per_round == total_pages and i == total_pages * per_page - total_companies:
-                break
-
-        print("Page {0} finished!".format(page_done + 1 + pages - per_round))
-        if page_done + 1 + pages - per_round == total_pages:
-            break
-        else:
-            page_done += 1
-    
     if pages == per_round:
         company_data.to_csv('company_data_50.txt', mode='a', sep='|', index=False)
     else:
         company_data.to_csv('company_data_50.txt', mode='a', sep='|', index=False, header=False)
     company_data = company_data.iloc[0:0]
     innerHTML = []
+    company_names = []
     print('{0} to {1} pages output!'.format(pages - per_round + 1, page_num))
+    
     if page_num == total_pages:
         break
     pages += per_round
