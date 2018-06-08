@@ -9,6 +9,7 @@ from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup as soup
 from bs4 import SoupStrainer
 from lxml import html
+import numpy as np
 import time
 import pandas as pd
 import win32com.client as win32
@@ -64,9 +65,10 @@ def login_orbis(browser,year):
         
     data_url = "https://orbis4.bvdinfo.com/version-201866/orbis/1/Companies/List"
     browser.get(data_url)
-    select_view = browser.find_element_by_css_selector('div.menuViewContainer > div.menuView > ul > li > a')
+    time.sleep(3)
     while 1:
         try:
+            select_view = browser.find_element_by_css_selector('div.menuViewContainer > div.menuView > ul > li > a')
             select_view.click()  
             break
         except:
@@ -105,20 +107,10 @@ def hard_refresh(browser,year,start_page):
             continue
     return browser
  
-def save_draft(year, pages):
-    outlook = win32.Dispatch('outlook.application')
-    mail = outlook.CreateItem(0)
-    mail.To = 'shuai.qian@outlook.com'
-    mail.Subject = 'Orbis Web Scraping System update'
-    mail.Body = 'System is running. \nCurrent Time: {2}. Current Year: {0}. Current Page: {1}'.format(year,pages,time.ctime())
-    mail.Display()
-    mail.Save()
-    mail.Close(0)
-
 ######### Settings for scraping #####################
 year_to_get = list(range(2015,2007,-1))
 year_to_get = [2015,2014]
-start_page = 72941
+start_page = 1981
 #####################################################
 
 
@@ -126,7 +118,8 @@ login_orbis(browser,year_to_get[0])
 if_start = input('Start scraping data? (Y/n)\n')
 if if_start != 'Y':
     exit
-
+start_time = time.time()
+start_datetime = time.ctime()
 # Starting from the first year
 
 for year in year_to_get:
@@ -170,36 +163,45 @@ for year in year_to_get:
     
     strainer_a = SoupStrainer('a', {'data-action': "reporttransfer"})
     strainer_td = SoupStrainer('td', {'class': 'scroll-data'})
+    strainer_td = SoupStrainer('td', {'class': 'scroll-data'})
     strainer_input = SoupStrainer('input', {'title': 'Number of page'})
+    strainer_tbody = SoupStrainer(id='resultsTable')
     
     stuck_times = 0
     stuck = 0
     teleport = 0
     innerHTML = []
+    page_done = 0
     while page_num <= total_pages:
         teleport = 0
         stuck_times = 0
+        has_too_fast = 0
         stopwatch = time.time()
         while 1:
-            current = browser.execute_script("return document.body.innerHTML")
-            soup_input = soup(current, "lxml", parse_only=strainer_input)
-            page_num = int(soup_input.input['value'])
-            if page_num - pages + per_round - 1 == len(innerHTML):
-                innerHTML.append(current)
+            innerHTML = browser.execute_script("return document.body.innerHTML")
+            tree = html.fromstring(innerHTML)
+            page_num = int(tree.cssselect('input[type="number"]')[0].attrib['value'])
+            if page_num - pages + per_round - 1 == page_done:
+                page_done += 1
                 print("Page {0} retrieved!".format(page_num))
                 stuck = 0
-                page_soup = soup(innerHTML[-1],"lxml")         
+                page_soup = soup(innerHTML,"lxml").select_one('#resultsTable')
+#                try:
+#                    company_names += [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})][:100]
+#                except:
+#                    company_names = [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})][:100]
                 try:
-                    company_names += [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})][:100]
+                    company_names += [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
                 except:
-                    company_names = [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})][:100]
-                data_points = page_soup.find('td', {'class': 'scroll-data'}).find_all('tr')
+                    company_names = [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
+
+                data_points = page_soup.select('td.scroll-data > div > table > tbody > tr > td')
+                data = np.array_split([x.text for x in data_points], per_page)
                 company_data = company_data.drop("company_name",axis=1)
-                for i in range(min(per_page,total_companies-(page_num-1)*per_page)):
-                    company_data.loc[i + len(innerHTML) * per_page] = [x.text for x in data_points[i].find_all('td')]
+                company_data = pd.concat([company_data,pd.DataFrame(data,columns=column_names[1:])])
                 company_data.insert(0,"company_name",company_names)
                 print("Page {0} finished!".format(page_num))
-                if len(innerHTML) + pages - per_round == total_pages or len(innerHTML) == per_round:
+                if page_done + pages - per_round == total_pages or page_done == per_round:
                     break
                 elif page_num % pages_each_time == 1 or pages_each_time == 1 and teleport == 0:
                     next_button = browser.find_element_by_xpath("//img[@data-action='next']")
@@ -231,18 +233,19 @@ for year in year_to_get:
                             continue
                     teleport = 0
                 
-            elif page_num - pages + per_round - 1 > len(innerHTML):
+            elif page_num - pages + per_round - 1 > page_done:
                 try:
                     if teleport == 0:
                         browser.refresh()
                         page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
                         page_input.clear()
-                        page_to_go = len(innerHTML) + pages - per_round + 1
+                        page_to_go = page_done + pages - per_round + 1
                         page_input.send_keys(str(page_to_go))
                         page_input.send_keys(Keys.RETURN)
-                        print('Too fast. Teleport to Page {0}'.format(len(innerHTML) + pages - per_round + 1))
+                        print('Too fast. Teleport to Page {0}'.format(page_done + pages - per_round + 1))
                         stuck = 0
                         teleport = 1
+                        has_too_fast += 1
                 except:
                     continue
             else:
@@ -269,10 +272,10 @@ for year in year_to_get:
                         browser.refresh()
                         page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
                         page_input.clear()
-                        page_to_go = len(innerHTML) + pages - per_round + 1
+                        page_to_go = page_done + pages - per_round + 1
                         page_input.send_keys(str(page_to_go))
                         page_input.send_keys(Keys.RETURN)
-                        print('Too slow. Teleport to Page {0}'.format(len(innerHTML) + pages - per_round + 1))
+                        print('Too slow. Teleport to Page {0}'.format(page_done + pages - per_round + 1))
                         stuck = 0
                         teleport = 1
                     except:
@@ -283,7 +286,7 @@ for year in year_to_get:
         else:
             company_data.to_csv('All_columns-{0}.txt'.format(year), mode='a', sep='|', index=False, header=False)
         company_data = company_data.iloc[0:0]
-        innerHTML = []
+        page_done = 0
         company_names = []
         print('{0} to {1} pages output! Time cost:{2:.2f}s'.format(pages - per_round + 1, page_num, time.time() - stopwatch))
         
@@ -294,9 +297,23 @@ for year in year_to_get:
             break
         
         # Report each 2ooo pages
+        avg_time = (time.time()-start_time-15)/(pages-start_page)*1000
         try:
             if pages % 2000 == 0:
-                save_draft(year, pages)
+                outlook = win32.Dispatch('outlook.application')
+                mail = outlook.CreateItem(0)
+                mail.To = 'shuai.qian@outlook.com'
+                mail.Subject = 'Orbis Web Scraping System update'
+                mail.Body = """System is running.\n
+                Current Time: {2}. Start Time: {4}.\n
+                Current Year of Data: {0}.\n
+                Current Page: {1}. Start Page: {3}. Total Pages: {5}.\n
+                Average Time per 1000 pages: {6:.2f}s.\n
+                Approximately another {7:.2f} hours to finish this year of data.\n
+                """.format(year,pages,time.ctime(),start_page,start_datetime,grand_total_pages,avg_time,(grand_total_pages-pages)/1000*avg_time/3600)
+                mail.Display()
+                mail.Save()
+                mail.Close(0)
         except:
             pass
         
@@ -304,7 +321,7 @@ for year in year_to_get:
         pages += per_round
         
         # Test if it's time to do hard refresh
-        if time.time() - stopwatch >= 55*per_round/20:
+        if time.time() - stopwatch >= 55*per_round/20 and has_too_fast <= 2:
             browser = hard_refresh(browser, year, pages - per_round + 1)
         
         
