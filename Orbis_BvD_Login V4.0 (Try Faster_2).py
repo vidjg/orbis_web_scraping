@@ -44,19 +44,13 @@ def login_orbis(browser,year):
     while 1:
         try:
             search_input = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.toolbar-tabs-zone-header > div.criterion-search > input.toolbar-find-criterion')
+            search_input.clear()
             search_input.send_keys(str(year))
-            break
-        except:
-            continue
-    while 1:
-        try:
-            search_set = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.user-data-item-folder.searches > div:nth-child(7) > div > div.no-scroll-bar > ul.user-data-item-folder.search-result > li > a > span.name.clickable')
+            search_input.send_keys(Keys.RETURN)
+            time.sleep(2)
+            search_set = browser.find_element_by_css_selector('ul.user-data-item-folder.search-result > li > a > span.name.clickable')
             search_set.click()
-            break
-        except:
-            continue
-    while 1:
-        try:
+            time.sleep(2)
             ok_button = browser.find_element_by_css_selector('a.button.submit.ok')
             ok_button.click()
             break
@@ -90,9 +84,15 @@ def hard_refresh(browser,year,start_page):
     password = browser.find_element_by_name("pw")
     username.send_keys(form_data["user"])
     password.send_keys(form_data["pw"])
-    
-    login_button = browser.find_element_by_class_name("ok")
-    login_button.click()
+    while 1:
+        try:
+            login_button = browser.find_element_by_class_name("ok")
+            login_button.click()
+            break
+        except:
+            browser.close()
+            browser = webdriver.Chrome()
+            browser.get(login_url)
     
     login_orbis(browser,year)
     while 1:
@@ -109,15 +109,17 @@ def hard_refresh(browser,year,start_page):
  
 ######### Settings for scraping #####################
 year_to_get = list(range(2015,2007,-1))
-year_to_get = [2015,2014]
-start_page = 1981
+year_to_get = [2015,2014,2013]
+start_page = 35681
 #####################################################
 
-
 login_orbis(browser,year_to_get[0])
-if_start = input('Start scraping data? (Y/n)\n')
-if if_start != 'Y':
-    exit
+# =============================================================================
+# if_start = input('Start scraping data? (Y/n)\n')
+# if if_start != 'Y':
+#     exit
+# =============================================================================
+
 start_time = time.time()
 start_datetime = time.ctime()
 # Starting from the first year
@@ -234,6 +236,7 @@ for year in year_to_get:
                     teleport = 0
                 
             elif page_num - pages + per_round - 1 > page_done:
+                stuck += 1
                 try:
                     if teleport == 0:
                         browser.refresh()
@@ -243,6 +246,19 @@ for year in year_to_get:
                         page_input.send_keys(str(page_to_go))
                         page_input.send_keys(Keys.RETURN)
                         print('Too fast. Teleport to Page {0}'.format(page_done + pages - per_round + 1))
+                        stuck = 0
+                        teleport = 1
+                        has_too_fast += 1
+                    elif teleport == 1 and stuck >= 3000:
+                        while 1:
+                            try:
+                                page_to_go = page_done + pages - per_round + 1
+                                browser = hard_refresh(browser, year, page_to_go)
+                                innerHTML = browser.execute_script("return document.body.innerHTML")
+                                print('Hard Refreshed!')
+                                break
+                            except:
+                                continue
                         stuck = 0
                         teleport = 1
                         has_too_fast += 1
@@ -266,10 +282,25 @@ for year in year_to_get:
                             rolled = m
                             next_button = browser.find_element_by_xpath("//img[@data-action='next']")
                             continue
-                elif stuck >= 50 and stuck_times == 1:
+                elif stuck >= 50 and stuck_times >= 5:
+                    try:
+                        stuck_times = 0
+                        while 1:
+                            try:
+                                page_to_go = page_done + pages - per_round + 1
+                                browser = hard_refresh(browser, year, page_to_go)
+                                innerHTML = browser.execute_script("return document.body.innerHTML")
+                                print('Hard Refreshed!')
+                                break
+                            except:
+                                continue
+                        stuck = 0
+                        teleport = 1
+                    except:
+                        continue
+                elif stuck >= 50 and stuck_times >= 1:
                     try:
                         stuck_times += 1
-                        browser.refresh()
                         page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
                         page_input.clear()
                         page_to_go = page_done + pages - per_round + 1
@@ -279,7 +310,7 @@ for year in year_to_get:
                         stuck = 0
                         teleport = 1
                     except:
-                        continue
+                        continue                    
         # Output result datatable to csv
         if pages == per_round:
             company_data.to_csv('All_columns-{0}.txt'.format(year), mode='a', sep='|', index=False)
@@ -304,12 +335,13 @@ for year in year_to_get:
                 mail = outlook.CreateItem(0)
                 mail.To = 'shuai.qian@outlook.com'
                 mail.Subject = 'Orbis Web Scraping System update'
-                mail.Body = """System is running.\n
-                Current Time: {2}. Start Time: {4}.\n
-                Current Year of Data: {0}.\n
-                Current Page: {1}. Start Page: {3}. Total Pages: {5}.\n
-                Average Time per 1000 pages: {6:.2f}s.\n
+                mail.Body = """System is running.
+                Current Time: {2}. Start Time: {4}.
+                Current Year of Data: {0}.
+                Current Page: {1}. Start Page: {3}. Total Pages: {5}.
+                Average Time per 1000 pages: {6:.2f}s.
                 Approximately another {7:.2f} hours to finish this year of data.\n
+                Reported by Orbis Data Scraping System
                 """.format(year,pages,time.ctime(),start_page,start_datetime,grand_total_pages,avg_time,(grand_total_pages-pages)/1000*avg_time/3600)
                 mail.Display()
                 mail.Save()
@@ -321,8 +353,8 @@ for year in year_to_get:
         pages += per_round
         
         # Test if it's time to do hard refresh
-        if time.time() - stopwatch >= 55*per_round/20 and has_too_fast <= 2:
+        if time.time() - stopwatch >= 45*per_round/20 and has_too_fast <= 1 and stuck_times == 0:
             browser = hard_refresh(browser, year, pages - per_round + 1)
-        
+            print('Hard Refreshed!')
         
 print('Successfully output to csv file!')
