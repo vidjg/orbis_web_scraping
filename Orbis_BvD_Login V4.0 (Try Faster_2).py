@@ -109,8 +109,8 @@ def hard_refresh(browser,year,start_page):
  
 ######### Settings for scraping #####################
 year_to_get = list(range(2015,2007,-1))
-year_to_get = [2015,2014,2013]
-start_page = 35681
+year_to_get = [2014,2013]
+start_page = 221
 #####################################################
 
 login_orbis(browser,year_to_get[0])
@@ -122,6 +122,8 @@ login_orbis(browser,year_to_get[0])
 
 start_time = time.time()
 start_datetime = time.ctime()
+big_round_time = start_time
+hard_refresh = 0
 # Starting from the first year
 
 for year in year_to_get:
@@ -174,6 +176,7 @@ for year in year_to_get:
     teleport = 0
     innerHTML = []
     page_done = 0
+    fastest_time = 0
     while page_num <= total_pages:
         teleport = 0
         stuck_times = 0
@@ -184,7 +187,6 @@ for year in year_to_get:
             tree = html.fromstring(innerHTML)
             page_num = int(tree.cssselect('input[type="number"]')[0].attrib['value'])
             if page_num - pages + per_round - 1 == page_done:
-                page_done += 1
                 print("Page {0} retrieved!".format(page_num))
                 stuck = 0
                 page_soup = soup(innerHTML,"lxml").select_one('#resultsTable')
@@ -198,27 +200,30 @@ for year in year_to_get:
                     company_names = [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
 
                 data_points = page_soup.select('td.scroll-data > div > table > tbody > tr > td')
-                data = np.array_split([x.text for x in data_points], per_page)
+                if page_num == total_pages:
+                    num_on_page = total_companies - (page_done+pages-per_round)*per_page
+                else:
+                    num_on_page = per_page
+                data = np.array_split([x.text for x in data_points], num_on_page)
                 company_data = company_data.drop("company_name",axis=1)
                 company_data = pd.concat([company_data,pd.DataFrame(data,columns=column_names[1:])])
                 company_data.insert(0,"company_name",company_names)
+                page_done += 1
                 print("Page {0} finished!".format(page_num))
-                if page_done + pages - per_round == total_pages or page_done == per_round:
-                    break
-                elif page_num % pages_each_time == 1 or pages_each_time == 1 and teleport == 0:
-                    next_button = browser.find_element_by_xpath("//img[@data-action='next']")
+                if page_num % pages_each_time == 1:
                     num_to_roll = min(pages_each_time - page_num % pages_each_time + 1, total_pages - page_num)
                     rolled = 0
-                    while 1:
-                        try:
-                            for m in range(rolled, num_to_roll):
-                                next_button.click()
-                            print('Rolling!')
-                            break
-                        except:
-                            rolled = m
-                            next_button = browser.find_element_by_xpath("//img[@data-action='next']")
-                            continue
+                if page_done + pages - per_round == total_pages or page_done == per_round:
+                    break
+                elif page_done % pages_each_time - 1 == rolled or pages_each_time == 1 and teleport == 0:
+                    next_button = browser.find_element_by_xpath("//img[@data-action='next']")                 
+                    try:
+                        for m in range(rolled, num_to_roll):
+                            next_button.click()
+                        rolled = m
+                        print('Rolling!')
+                    except:
+                        rolled = m
                 elif teleport == 1:
                     next_button = browser.find_element_by_xpath("//img[@data-action='next']")
                     num_to_roll = min(pages_each_time - page_num % pages_each_time + 1, total_pages - page_num)
@@ -319,6 +324,8 @@ for year in year_to_get:
         company_data = company_data.iloc[0:0]
         page_done = 0
         company_names = []
+        if time.time() - stopwatch < fastest_time or fastest_time == 0:
+            fastest_time = time.time() - stopwatch
         print('{0} to {1} pages output! Time cost:{2:.2f}s'.format(pages - per_round + 1, page_num, time.time() - stopwatch))
         
         if page_num == total_pages:
@@ -331,18 +338,25 @@ for year in year_to_get:
         avg_time = (time.time()-start_time-15)/(pages-start_page)*1000
         try:
             if pages % 2000 == 0:
+                round_time_spent = time.time() - big_round_time
+                big_round_time = time.time()
+                fastest_time = 0
+                hard_refresh = 0
                 outlook = win32.Dispatch('outlook.application')
                 mail = outlook.CreateItem(0)
                 mail.To = 'shuai.qian@outlook.com'
                 mail.Subject = 'Orbis Web Scraping System update'
-                mail.Body = """System is running.
-                Current Time: {2}. Start Time: {4}.
-                Current Year of Data: {0}.
-                Current Page: {1}. Start Page: {3}. Total Pages: {5}.
-                Average Time per 1000 pages: {6:.2f}s.
-                Approximately another {7:.2f} hours to finish this year of data.\n
+                mail.Body = """System is running.\
+                Current Time: {2}.\
+                Start Time: {4}.\
+                Current Year of Data: {0}.\
+                Current Page: {1}. Start Page: {3}. Total Pages: {5}.\
+                Average Time per 1000 pages: {6:.2f}s.\
+                Time spent on the last 1000 pages: {8:.2f}s\
+                Number of Hard Refresh in the last 1000 pages: {9}.\
+                Approximately another {7:.2f} hours to finish this year of data.\
                 Reported by Orbis Data Scraping System
-                """.format(year,pages,time.ctime(),start_page,start_datetime,grand_total_pages,avg_time,(grand_total_pages-pages)/1000*avg_time/3600)
+                """.format(year,pages,time.ctime(),start_page,start_datetime,grand_total_pages,avg_time,(grand_total_pages-pages)/1000*avg_time/3600,round_time_spent,hard_refresh)
                 mail.Display()
                 mail.Save()
                 mail.Close(0)
@@ -353,8 +367,9 @@ for year in year_to_get:
         pages += per_round
         
         # Test if it's time to do hard refresh
-        if time.time() - stopwatch >= 45*per_round/20 and has_too_fast <= 1 and stuck_times == 0:
+        if time.time() - stopwatch >= 1.5*fastest_time and stuck_times <= 1 and has_too_fast < 1 or has_too_fast > 1:
             browser = hard_refresh(browser, year, pages - per_round + 1)
             print('Hard Refreshed!')
+            hard_refresh += 1
         
 print('Successfully output to csv file!')
