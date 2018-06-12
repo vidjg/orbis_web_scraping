@@ -123,7 +123,7 @@ login_orbis(browser,year_to_get[0])
 start_time = time.time()
 start_datetime = time.ctime()
 big_round_time = start_time
-hard_refresh = 0
+hard_refresh_times = 0
 # Starting from the first year
 
 for year in year_to_get:
@@ -341,7 +341,7 @@ for year in year_to_get:
                 round_time_spent = time.time() - big_round_time
                 big_round_time = time.time()
                 fastest_time = 0
-                hard_refresh = 0
+                hard_refresh_times = 0
                 outlook = win32.Dispatch('outlook.application')
                 mail = outlook.CreateItem(0)
                 mail.To = 'shuai.qian@outlook.com'
@@ -370,6 +370,6 @@ for year in year_to_get:
         if time.time() - stopwatch >= 1.5*fastest_time and stuck_times <= 1 and has_too_fast < 1 or has_too_fast > 1:
             browser = hard_refresh(browser, year, pages - per_round + 1)
             print('Hard Refreshed!')
-            hard_refresh += 1
+            hard_refresh_times += 1
         
 print('Successfully output to csv file!')
