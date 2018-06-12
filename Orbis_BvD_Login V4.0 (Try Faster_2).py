@@ -335,13 +335,14 @@ for year in year_to_get:
             break
         
         # Report each 2ooo pages
-        avg_time = (time.time()-start_time-15)/(pages-start_page)*1000
-        round_time_spent = (time.time() - big_round_time)/(pages - max(start_page,pages-2000))*1000
-        big_round_time = time.time()
-        fastest_time = 0
-        hard_refresh_times = 0
         try:
             if pages % 2000 == 0:
+                avg_time = (time.time()-start_time-15)/(pages-start_page)*1000
+                round_time_spent = (time.time() - big_round_time)/(pages - max(start_page,pages-2000))*1000
+                big_round_time = time.time()
+                fastest_time = 0
+                hard_refresh_times = 0
+                
                 outlook = win32.Dispatch('outlook.application')
                 mail = outlook.CreateItem(0)
                 mail.To = 'shuai.qian@outlook.com'
