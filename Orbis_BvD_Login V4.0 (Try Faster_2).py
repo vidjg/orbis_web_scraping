@@ -50,7 +50,7 @@ def login_orbis(browser,year):
             time.sleep(2)
             search_set = browser.find_element_by_css_selector('ul.user-data-item-folder.search-result > li > a > span.name.clickable')
             search_set.click()
-            time.sleep(2)
+            time.sleep(0.5)
             ok_button = browser.find_element_by_css_selector('a.button.submit.ok')
             ok_button.click()
             break
@@ -110,7 +110,7 @@ def hard_refresh(browser,year,start_page):
 ######### Settings for scraping #####################
 year_to_get = list(range(2015,2007,-1))
 year_to_get = [2014,2013]
-start_page = 221
+start_page = 35661
 #####################################################
 
 login_orbis(browser,year_to_get[0])
@@ -336,12 +336,12 @@ for year in year_to_get:
         
         # Report each 2ooo pages
         avg_time = (time.time()-start_time-15)/(pages-start_page)*1000
+        round_time_spent = (time.time() - big_round_time)/(pages - max(start_page,pages-2000))*1000
+        big_round_time = time.time()
+        fastest_time = 0
+        hard_refresh_times = 0
         try:
             if pages % 2000 == 0:
-                round_time_spent = time.time() - big_round_time
-                big_round_time = time.time()
-                fastest_time = 0
-                hard_refresh_times = 0
                 outlook = win32.Dispatch('outlook.application')
                 mail = outlook.CreateItem(0)
                 mail.To = 'shuai.qian@outlook.com'
