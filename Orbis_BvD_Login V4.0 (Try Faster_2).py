@@ -59,16 +59,12 @@ def login_orbis(browser,year):
         
     data_url = "https://orbis4.bvdinfo.com/version-201866/orbis/1/Companies/List"
     browser.get(data_url)
-    time.sleep(3)
+    time.sleep(2)
     while 1:
         try:
             select_view = browser.find_element_by_css_selector('div.menuViewContainer > div.menuView > ul > li > a')
             select_view.click()  
-            break
-        except:
-            continue
-    while 1:
-        try:
+            time.sleep(0.5)
             view_year = browser.find_element_by_css_selector('span.name.clickable[title="All Columns {0}"]'.format(year))
             view_year.click()
             break
@@ -109,8 +105,8 @@ def hard_refresh(browser,year,start_page):
  
 ######### Settings for scraping #####################
 year_to_get = list(range(2015,2007,-1))
-year_to_get = [2014,2013]
-start_page = 35661
+year_to_get = [2013]
+start_page = 16081
 #####################################################
 
 login_orbis(browser,year_to_get[0])
@@ -190,10 +186,6 @@ for year in year_to_get:
                 print("Page {0} retrieved!".format(page_num))
                 stuck = 0
                 page_soup = soup(innerHTML,"lxml").select_one('#resultsTable')
-#                try:
-#                    company_names += [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})][:100]
-#                except:
-#                    company_names = [x.text for x in page_soup.find_all('a',{'data-action': "reporttransfer"})][:100]
                 try:
                     company_names += [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
                 except:
@@ -289,7 +281,6 @@ for year in year_to_get:
                             continue
                 elif stuck >= 50 and stuck_times >= 5:
                     try:
-                        stuck_times = 0
                         while 1:
                             try:
                                 page_to_go = page_done + pages - per_round + 1
@@ -341,26 +332,30 @@ for year in year_to_get:
                 round_time_spent = (time.time() - big_round_time)/(pages - max(start_page,pages-2000))*1000
                 big_round_time = time.time()
                 fastest_time = 0
-                hard_refresh_times = 0
+
                 
                 outlook = win32.Dispatch('outlook.application')
                 mail = outlook.CreateItem(0)
                 mail.To = 'shuai.qian@outlook.com'
-                mail.Subject = 'Orbis Web Scraping System update'
-                mail.Body = """System is running.\
-                Current Time: {2}.\
-                Start Time: {4}.\
-                Current Year of Data: {0}.\
-                Current Page: {1}. Start Page: {3}. Total Pages: {5}.\
-                Average Time per 1000 pages: {6:.2f}s.\
-                Time spent on the last 1000 pages: {8:.2f}s\
-                Number of Hard Refresh in the last 1000 pages: {9}.\
-                Approximately another {7:.2f} hours to finish this year of data.\
-                Reported by Orbis Data Scraping System
-                """.format(year,pages,time.ctime(),start_page,start_datetime,grand_total_pages,avg_time,(grand_total_pages-pages)/1000*avg_time/3600,round_time_spent,hard_refresh)
+                mail.Subject = 'Orbis Data Scraping System update'
+                mail.Body = """System is running.
+Current Time: {2}.
+Start Time: {4}.
+Current Year of Data: {0}.
+Current Page: {1}. 
+Start Page: {3}. 
+Total Pages: {5}.
+Average Time per 1000 pages: {6:.2f}s.
+Time spent on the last 1000 pages: {8:.2f}s
+Number of Hard Refresh in the last 1000 pages: {9}.
+Approximately another {7:.2f} hours to finish this year of data.
+Reported by Orbis Data Scraping System
+                """.format(year,pages,time.ctime(),start_page,start_datetime,grand_total_pages,avg_time,(grand_total_pages-pages)/1000*avg_time/3600,round_time_spent,hard_refresh_times)
                 mail.Display()
                 mail.Save()
                 mail.Close(0)
+                
+                hard_refresh_times = 0                
         except:
             pass
         
@@ -368,7 +363,7 @@ for year in year_to_get:
         pages += per_round
         
         # Test if it's time to do hard refresh
-        if time.time() - stopwatch >= 1.5*fastest_time and stuck_times <= 1 and has_too_fast < 1 or has_too_fast > 1:
+        if time.time() - stopwatch >= 1.5*fastest_time and fastest_time > 0 and stuck_times <= 1 and has_too_fast < 1 or has_too_fast > 1:
             browser = hard_refresh(browser, year, pages - per_round + 1)
             print('Hard Refreshed!')
             hard_refresh_times += 1
