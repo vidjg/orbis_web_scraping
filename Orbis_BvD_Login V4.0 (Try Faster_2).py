@@ -6,6 +6,10 @@ Created on Thu May 24 13:34:26 2018
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 from bs4 import BeautifulSoup as soup
 from bs4 import SoupStrainer
 from lxml import html
@@ -28,7 +32,6 @@ login_button = browser.find_element_by_class_name("ok")
 login_button.click()
 
 def login_orbis(browser,year):
-
     try:
         search_button = browser.find_element_by_xpath("//a[@data-paramid='AllCompanies']")
         search_button.click()
@@ -40,7 +43,8 @@ def login_orbis(browser,year):
 
     load_button = browser.find_element_by_css_selector('#search-toolbar > div > div.menu-container > ul > li[data-vs-value=load-search-section]')
     load_button.click()
-    time.sleep(3)
+    if visible_in_time(browser, '#tooltabSectionload-search-section > div:nth-child(1) > div.toolbar-tabs-zone-header > div.criterion-search > input.toolbar-find-criterion', 5) is False:
+        browser.get(login_url)           
     while 1:
         try:
             search_input = browser.find_element_by_css_selector('#tooltabSectionload-search-section > div:nth-child(1) > div.toolbar-tabs-zone-header > div.criterion-search > input.toolbar-find-criterion')
@@ -55,8 +59,7 @@ def login_orbis(browser,year):
             ok_button.click()
             break
         except:
-            continue
-        
+            continue 
     data_url = "https://orbis4.bvdinfo.com/version-201866/orbis/1/Companies/List"
     browser.get(data_url)
     time.sleep(2)
@@ -70,6 +73,7 @@ def login_orbis(browser,year):
             break
         except:
             continue
+                                                
 
 def hard_refresh(browser,year,start_page):
     browser.close()
@@ -97,24 +101,28 @@ def hard_refresh(browser,year,start_page):
             page_input.clear()
             page_input.send_keys(str(start_page))
             page_input.send_keys(Keys.RETURN)
-            time.sleep(3)
             break
         except:
             continue
+    if visible_in_time(browser, '#resultsTable > tbody > tr > td.scroll-data > div > table > tbody > tr:nth-child(1) > td:nth-child(1)', 10) is False:
+        return hard_refresh(browser,year,start_page)
     return browser
  
+def visible_in_time(browser, address, time):
+    try:
+        WebDriverWait(browser, time).until(EC.presence_of_element_located((By.CSS_SELECTOR, address)))
+        return True
+    except TimeoutException:
+        return False  
+
+
 ######### Settings for scraping #####################
 year_to_get = list(range(2015,2007,-1))
 year_to_get = [2013]
-start_page = 16081
+start_page = 48041
 #####################################################
 
 login_orbis(browser,year_to_get[0])
-# =============================================================================
-# if_start = input('Start scraping data? (Y/n)\n')
-# if if_start != 'Y':
-#     exit
-# =============================================================================
 
 start_time = time.time()
 start_datetime = time.ctime()
@@ -178,60 +186,72 @@ for year in year_to_get:
         stuck_times = 0
         has_too_fast = 0
         stopwatch = time.time()
+        company_data = company_data.drop("company_name",axis=1)
         while 1:
             innerHTML = browser.execute_script("return document.body.innerHTML")
             tree = html.fromstring(innerHTML)
-            page_num = int(tree.cssselect('input[type="number"]')[0].attrib['value'])
+#            page_num = int(tree.cssselect('input[type="number"]')[0].attrib['value'])
+            page_num = int(tree.xpath('//ul[@class="navigation"]/*/span[@class="currentPage" and text() != "..." ]/text()')[0])
             if page_num - pages + per_round - 1 == page_done:
                 print("Page {0} retrieved!".format(page_num))
                 stuck = 0
-                page_soup = soup(innerHTML,"lxml").select_one('#resultsTable')
-                try:
-                    company_names += [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
-                except:
-                    company_names = [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
-
-                data_points = page_soup.select('td.scroll-data > div > table > tbody > tr > td')
+                tree = tree.cssselect('#resultsTable')[0]
+#                page_soup = soup(innerHTML,"lxml").select_one('#resultsTable')
+                if company_names == []:
+                    company_names = tree.xpath('//span[@class="ellipsis"]/a[@href="#"]/text()')
+                else:
+                    company_names += tree.xpath('//span[@class="ellipsis"]/a[@href="#"]/text()')                               
+# =============================================================================
+#                 if company_names == []:
+#                     company_names = [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
+#                 else:
+#                     company_names += [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
+# =============================================================================
+                data_points = tree.xpath('//td[@class="scroll-data"]/div/table/tbody/tr/descendant::*/text()')
+#                data_points = page_soup.select('td.scroll-data > div > table > tbody > tr > td')
                 if page_num == total_pages:
                     num_on_page = total_companies - (page_done+pages-per_round)*per_page
                 else:
                     num_on_page = per_page
-                data = np.array_split([x.text for x in data_points], num_on_page)
-                company_data = company_data.drop("company_name",axis=1)
+                data = np.array_split(data_points, num_on_page)                
+#                data = np.array_split([x.text for x in data_points], num_on_page)
                 company_data = pd.concat([company_data,pd.DataFrame(data,columns=column_names[1:])])
-                company_data.insert(0,"company_name",company_names)
+                
                 page_done += 1
                 print("Page {0} finished!".format(page_num))
-                if page_num % pages_each_time == 1:
+                
+                # Rolling after saving the data
+                if page_done + pages - per_round == total_pages:
+                    break
+                if page_num % pages_each_time == 1 and pages_each_time != 1:
                     num_to_roll = min(pages_each_time - page_num % pages_each_time + 1, total_pages - page_num)
                     rolled = 0
-                if page_done + pages - per_round == total_pages or page_done == per_round:
-                    break
-                elif page_done % pages_each_time - 1 == rolled or pages_each_time == 1 and teleport == 0:
+                if teleport == 0 and (page_done - 1) % pages_each_time == rolled and pages_each_time != 1:
                     next_button = browser.find_element_by_xpath("//img[@data-action='next']")                 
                     try:
                         for m in range(rolled, num_to_roll):
                             next_button.click()
-                        rolled = m
+                        rolled = m + 1
                         print('Rolling!')
                     except:
                         rolled = m
-                elif teleport == 1:
+                elif teleport == 1 and pages_each_time != 1:
                     next_button = browser.find_element_by_xpath("//img[@data-action='next']")
-                    num_to_roll = min(pages_each_time - page_num % pages_each_time + 1, total_pages - page_num)
-                    rolled = 0
-                    while 1:
-                        try:
-                            for m in range(rolled, num_to_roll):
-                                next_button.click()
-                            print('Too fast recovered!')
-                            break
-                        except:
-                            rolled = m
-                            next_button = browser.find_element_by_xpath("//img[@data-action='next']")
-                            continue
+#                    num_to_roll = min(pages_each_time - page_num % pages_each_time + 1, total_pages - page_num)
+                    rolled = (page_done - 1) % pages_each_time
+                    try:
+                        for m in range(rolled, num_to_roll):
+                            next_button.click()
+                        rolled = m + 1
+                        print('Too fast recovered!')
+                    except:
+                        rolled = m
                     teleport = 0
-                
+                elif pages_each_time == 1:
+                    next_button = browser.find_element_by_xpath("//img[@data-action='next']")
+                    next_button.click()
+                if page_done == per_round:
+                    break
             elif page_num - pages + per_round - 1 > page_done:
                 stuck += 1
                 try:
@@ -246,7 +266,7 @@ for year in year_to_get:
                         stuck = 0
                         teleport = 1
                         has_too_fast += 1
-                    elif teleport == 1 and stuck >= 3000:
+                    elif teleport == 1 and stuck >= 300:
                         while 1:
                             try:
                                 page_to_go = page_done + pages - per_round + 1
@@ -267,18 +287,15 @@ for year in year_to_get:
                     stuck = 0
                     stuck_times += 1
                     next_button = browser.find_element_by_xpath("//img[@data-action='next']")
-                    num_to_roll = min(pages_each_time - page_num % pages_each_time + 1, total_pages - page_num)
-                    rolled = 0
-                    while 1:
-                        try:
-                            for m in range(rolled, num_to_roll):
-                                next_button.click()
-                            print('Recovered from stuck!')
-                            break
-                        except:
-                            rolled = m
-                            next_button = browser.find_element_by_xpath("//img[@data-action='next']")
-                            continue
+#                    num_to_roll = min(pages_each_time - page_num % pages_each_time + 1, total_pages - page_num)
+                    rolled = (page_done - 1) % pages_each_time
+                    try:
+                        for m in range(rolled, num_to_roll):
+                            next_button.click()
+                        print('Recovered from stuck!')
+                        rolled = m + 1
+                    except:
+                        rolled = m
                 elif stuck >= 50 and stuck_times >= 5:
                     try:
                         while 1:
@@ -308,6 +325,7 @@ for year in year_to_get:
                     except:
                         continue                    
         # Output result datatable to csv
+        company_data.insert(0,"company_name",company_names)
         if pages == per_round:
             company_data.to_csv('All_columns-{0}.txt'.format(year), mode='a', sep='|', index=False)
         else:
@@ -333,7 +351,6 @@ for year in year_to_get:
                 big_round_time = time.time()
                 fastest_time = 0
 
-                
                 outlook = win32.Dispatch('outlook.application')
                 mail = outlook.CreateItem(0)
                 mail.To = 'shuai.qian@outlook.com'
@@ -363,7 +380,7 @@ Reported by Orbis Data Scraping System
         pages += per_round
         
         # Test if it's time to do hard refresh
-        if time.time() - stopwatch >= 1.5*fastest_time and fastest_time > 0 and stuck_times <= 1 and has_too_fast < 1 or has_too_fast > 1:
+        if time.time() - stopwatch >= 1.5*fastest_time and fastest_time > 0 and stuck_times <= 1 and has_too_fast < 1:
             browser = hard_refresh(browser, year, pages - per_round + 1)
             print('Hard Refreshed!')
             hard_refresh_times += 1
