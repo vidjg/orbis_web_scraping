@@ -33,13 +33,10 @@ login_button.click()
 
 def login_orbis(browser,year):
     try:
-        search_button = browser.find_element_by_xpath("//a[@data-paramid='AllCompanies']")
-        search_button.click()
-    except:
         restart_button = browser.find_element_by_xpath("//input[@class='button ok']")
         restart_button.click()
-        search_button = browser.find_element_by_xpath("//a[@data-paramid='AllCompanies']")
-        search_button.click()
+    except:
+        pass
 
     load_button = browser.find_element_by_css_selector('#search-toolbar > div > div.menu-container > ul > li[data-vs-value=load-search-section]')
     load_button.click()
@@ -104,9 +101,11 @@ def hard_refresh(browser,year,start_page):
             break
         except:
             continue
-    if visible_in_time(browser, '#resultsTable > tbody > tr > td.scroll-data > div > table > tbody > tr:nth-child(1) > td:nth-child(1)', 10) is False:
+    refresh_stuck = visible_in_time(browser, '#resultsTable > tbody > tr > td.scroll-data > div > table > tbody > tr:nth-child(1) > td:nth-child(1)', 20)
+    if refresh_stuck == False:
         return hard_refresh(browser,year,start_page)
-    return browser
+    else:
+        return browser
  
 def visible_in_time(browser, address, time):
     try:
@@ -118,8 +117,8 @@ def visible_in_time(browser, address, time):
 
 ######### Settings for scraping #####################
 year_to_get = list(range(2015,2007,-1))
-year_to_get = [2013]
-start_page = 48041
+year_to_get = [2010,2009]
+start_page = 24361
 #####################################################
 
 login_orbis(browser,year_to_get[0])
@@ -198,9 +197,9 @@ for year in year_to_get:
                 tree = tree.cssselect('#resultsTable')[0]
 #                page_soup = soup(innerHTML,"lxml").select_one('#resultsTable')
                 if company_names == []:
-                    company_names = tree.xpath('//span[@class="ellipsis"]/a[@href="#"]/text()')
+                    company_names = [x.text for x in tree.xpath('//span[@class="ellipsis"]/a[@href="#"]')]
                 else:
-                    company_names += tree.xpath('//span[@class="ellipsis"]/a[@href="#"]/text()')                               
+                    company_names += [x.text for x in tree.xpath('//span[@class="ellipsis"]/a[@href="#"]')]
 # =============================================================================
 #                 if company_names == []:
 #                     company_names = [x.text for x in page_soup.select('td.fixed-data > div.fixed-data > table > tbody > tr > td.columnAlignLeft > span > a[href=#]')]
@@ -266,7 +265,7 @@ for year in year_to_get:
                         stuck = 0
                         teleport = 1
                         has_too_fast += 1
-                    elif teleport == 1 and stuck >= 300:
+                    elif teleport == 1 and stuck >= 200:
                         while 1:
                             try:
                                 page_to_go = page_done + pages - per_round + 1
@@ -281,6 +280,7 @@ for year in year_to_get:
                         has_too_fast += 1
                 except:
                     continue
+                time.sleep(0.1)
             else:
                 stuck += 1
                 if stuck >= 50 and stuck_times < 1:
@@ -296,13 +296,13 @@ for year in year_to_get:
                         rolled = m + 1
                     except:
                         rolled = m
-                elif stuck >= 50 and stuck_times >= 5:
+                elif stuck >= 600 and stuck_times == 5:
                     try:
                         while 1:
                             try:
                                 page_to_go = page_done + pages - per_round + 1
                                 browser = hard_refresh(browser, year, page_to_go)
-                                innerHTML = browser.execute_script("return document.body.innerHTML")
+#                                innerHTML = browser.execute_script("return document.body.innerHTML")
                                 print('Hard Refreshed!')
                                 break
                             except:
@@ -311,9 +311,8 @@ for year in year_to_get:
                         teleport = 1
                     except:
                         continue
-                elif stuck >= 50 and stuck_times >= 1:
+                elif stuck >= 300 and stuck_times >= 1:
                     try:
-                        stuck_times += 1
                         page_input = browser.find_element_by_xpath("//input[@title='Number of page']")
                         page_input.clear()
                         page_to_go = page_done + pages - per_round + 1
@@ -322,8 +321,10 @@ for year in year_to_get:
                         print('Too slow. Teleport to Page {0}'.format(page_done + pages - per_round + 1))
                         stuck = 0
                         teleport = 1
+                        stuck_times += 1
                     except:
-                        continue                    
+                        continue
+                time.sleep(0.1)                    
         # Output result datatable to csv
         company_data.insert(0,"company_name",company_names)
         if pages == per_round:
@@ -340,7 +341,9 @@ for year in year_to_get:
         if page_num == total_pages:
             print('Data of Year {0} is finished!'.format(year))
             start_page = 1
-            browser = hard_refresh(browser, year-1, start_page)
+            start_time = time.time()
+            start_datetime = time.ctime()
+            browser = hard_refresh(browser, year-1, start_page) 
             break
         
         # Report each 2ooo pages
@@ -380,7 +383,7 @@ Reported by Orbis Data Scraping System
         pages += per_round
         
         # Test if it's time to do hard refresh
-        if time.time() - stopwatch >= 1.5*fastest_time and fastest_time > 0 and stuck_times <= 1 and has_too_fast < 1:
+        if time.time() - stopwatch >= 1.75*fastest_time and fastest_time > 0 and stuck_times <= 1 and has_too_fast < 1:
             browser = hard_refresh(browser, year, pages - per_round + 1)
             print('Hard Refreshed!')
             hard_refresh_times += 1
